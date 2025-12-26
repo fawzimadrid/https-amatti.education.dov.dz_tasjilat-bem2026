@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة وزارة التربية الوطنية - تسجيلات الإمتحانات الرسمية</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Droid+Arabic+Kufi:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> 
+    <style>
+        /* 1. التنسيقات العامة */
+        body {
+            margin: 0;
+            font-family: 'Droid Arabic Kufi', sans-serif;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh; 
+            background-color: #f0f0f0; 
+        }
+        
+        /* 2. شريط الرأس */
+        .header-bar {
+            background-color: #007bff; padding: 10px 20px; display: flex;
+            justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); 
+        }
+        .header-bar .logo-container img { height: 50px; }
+        .header-title-box {
+            background-color: white; color: #007bff; font-size: 14px; 
+            font-weight: bold; padding: 10px 15px; border-radius: 4px;
+            margin-right: auto; margin-left: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .main-content {
+            flex-grow: 1; padding: 20px; margin: 20px;
+            background-color: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); 
+        }
+        .breadcrumb-title {
+            font-size: 18px; color: #007bff; margin-bottom: 20px; padding-bottom: 10px;
+            border-bottom: 1px solid #e9ecef; 
+        }
+        .breadcrumb-title .separator { color: #007bff; margin: 0 8px; font-weight: normal; }
+        .table-container {
+            background-color: #e3f2fd; padding: 25px; border-radius: 6px; margin-top: 0; 
+        }
+
+        /* 3. عناصر التحكم */
+        .table-actions {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; 
+        }
+        .search-container { flex-grow: 0; margin-left: 20px; width: 400px; } 
+        #searchInput {
+            width: 100%; padding: 10px 15px; border: 1px solid #ccc; border-radius: 4px;
+            background-color: white; font-family: inherit; box-sizing: border-box; 
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        #searchInput:focus {
+            border-color: #007bff; box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); outline: none; 
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .import-button, .export-button {
+            background-color: #28a745; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px;
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-family: inherit; 
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.2s;
+        }
+
+        .export-button { background-color: #ffc107; }
+        .export-button:hover { background-color: #e0a800; }
+        #excelFileInput { display: none; }
+
+        /* 4. الجدول */
+        .data-table { width: 100%; border-collapse: collapse; background-color: white; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); border-radius: 4px; overflow: hidden; }
+        .data-table th, .data-table td { border: 1px solid #dee2e6; padding: 10px; text-align: center; }
+        .data-table th { background-color: white; color: #007bff; font-weight: 700; }
+        
+        .status-not-registered {
+            display: inline-block; background-color: #dc3545; color: white;
+            padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 13px; white-space: nowrap; 
+        }
+        .status-registered {
+            display: inline-block; background-color: #28a745; color: white; 
+            padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 13px; white-space: nowrap; 
+        }
+
+        .register-button, .unregister-button {
+            background-color: white; color: #333; border: 1px solid; padding: 6px 12px;
+            border-radius: 4px; cursor: pointer; font-size: 14px;
+            font-family: 'Droid Arabic Kufi', sans-serif; margin-left: 5px;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+        .register-button { border-color: #28a745; }
+        .register-button:hover { background-color: #e6f7ea; }
+        .unregister-button { border-color: #dc3545; }
+        .unregister-button:hover { background-color: #fcebeb; }
+
+        .pagination-controls { display: flex; justify-content: flex-end; align-items: center; padding-top: 15px; direction: rtl; }
+        .pagination-buttons button { 
+            background-color: #007bff; color: white; border: none; padding: 8px 15px; margin-right: 5px; 
+            border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 14px; transition: background-color 0.3s;
+        }
+        .pagination-buttons button:hover:not(:disabled) { background-color: #0056b3; }
+        .pagination-buttons button:disabled { background-color: #cccccc; cursor: not-allowed; }
+
+        /* 5. الفوتر */
+        .footer-bar {
+            background-color: #007bff; color: white; text-align: center;
+            padding: 15px 0; font-size: 14px;
+        }
+
+        /* 6. تنسيق النافذة المنبثقة */
+        .modal-overlay {
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+            width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); 
+            padding-top: 50px;
+        }
+        
+        .modal-title-out {
+            color: white; font-size: 24px; font-weight: bold; text-align: right; 
+            margin-right: 70px; margin-bottom: 15px; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe; margin: 5% auto; padding: 20px;
+            border-radius: 8px; max-width: 1100px; width: 90%; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative;
+            padding-bottom: 20px; 
+        }
+        
+        .student-header-box {
+            background-color: #008000; color: white;
+            padding: 15px 20px; border-radius: 4px; margin-bottom: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .student-header-item {
+            display: flex; flex-direction: column; flex: 1; margin: 0 15px; min-width: 150px;
+        }
+        .student-header-label {
+            font-size: 14px; font-weight: bold; opacity: 0.8; margin-bottom: 3px;
+        }
+        .student-header-value { font-size: 18px; font-weight: 700; }
+
+        .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .form-group { flex: 1; display: flex; flex-direction: column; }
+        .form-group label { font-size: 13px; color: #555; margin-bottom: 5px; font-weight: 500; }
+        
+        .form-group input, .form-group select {
+            padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px;
+            font-family: inherit; font-size: 14px; background-color: #fff;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: #007bff; outline: 0; box-shadow: 0 0 0 0.25rem rgba(0, 123, 255, 0.25); 
+        }
+        
+        .warning-box {
+            background-color: #fcebeb; border: 1px solid #dc3545;
+            padding: 10px; margin-top: 20px; margin-bottom: 15px; 
+            border-radius: 4px; color: #dc3545; font-weight: bold; text-align: center; font-size: 14px;
+        }
+
+        /* 7. أزرار الفوتر داخل النافذة */
+        .modal-footer {
+            display: flex; justify-content: center; align-items: center;
+            margin-top: 20px; padding-bottom: 0; 
+        }
+
+        .modal-footer button {
+            background-color: transparent; box-shadow: none;
+            padding: 10px 30px; border-style: solid; cursor: pointer; 
+            font-family: inherit; font-weight: bold; font-size: 14px;
+            border-width: 2px; height: 45px; width: 240px; 
+            border-radius: 4px; margin: 0 15px; 
+            transition: background-color 0.2s, box-shadow 0.2s, border-width 0.2s;
+        }
+
+        #btnConfirm { order: 1; color: #28a745; border-color: #28a745; }
+        #btnConfirm:hover { background-color: rgba(40, 167, 69, 0.1); }
+        
+        #btnCancel { order: 2; color: #dc3545; border-color: #dc3545; }
+        #btnCancel:hover { background-color: rgba(220, 53, 69, 0.1); }
+        
+    </style>
+</head>
+<body>
+
+    <header class="header-bar">
+        <div class="logo-container">
+            <a href="https://www.education.gov.dz/" target="_blank">
+                <img src="https://www.education.gov.dz/wp-content/uploads/2023/07/mmmmmm.png" alt="شعار وزارة التربية الوطنية">
+            </a>
+        </div>
+        <div class="header-title-box">
+            وزارة التربية الوطنية تسجيلات الإمتحانات الرسمية
+        </div>
+    </header>
+
+    <main class="main-content">
+        <h2 class="breadcrumb-title">
+            وزارة التربية الوطنية <span class="separator">&gt;</span> الإمتحانات الرسمية
+        </h2>
+
+        <div class="table-container">
+            <div class="table-actions">
+                <div class="search-container">
+                    <input type="text" id="searchInput" placeholder="ابحث برقم التعريف أو الاسم أو اللقب..." onkeyup="filterTable()">
+                </div>
+                <div class="action-buttons">
+                    <button class="export-button" onclick="exportDataToExcel()">💾 تصدير البيانات إكسيل</button>
+                    <button class="import-button" onclick="document.getElementById('excelFileInput').click()">📥 استيراد بيانات التلاميذ إكسيل</button>
+                </div>
+            </div>
+            
+            <input type="file" id="excelFileInput" accept=".xlsx, .xls" onchange="handleFileSelect(event)">
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>رقم التعريف</th>
+                        <th>اللقب</th>
+                        <th>الاسم</th>
+                        <th>الجنس</th>
+                        <th>تاريخ الميلاد</th>
+                        <th>الفوج التربوي</th>
+                        <th>حالة التسجيل</th>
+                        <th>العمليات</th> 
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    <tr><td colspan="8" style="text-align: center;">الرجاء استيراد ملف إكسيل أو سيتم تحميل البيانات المخزنة محلياً.</td></tr>
+                </tbody>
+            </table>
+            
+            <div class="pagination-controls">
+                <div class="pagination-buttons">
+                    <button id="btnFirst" disabled>|<< الأول</button>
+                    <button id="btnPrev" disabled>< السابق</button>
+                    <button id="btnNext" disabled>التالي ></button>
+                    <button id="btnLast" disabled>الأخير >>|</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer-bar">
+        <p>وزارة التربية الوطنية - جميع الحقوق محفوظة &copy; 2025</p>
+    </footer>
+
+    <div id="registrationModal" class="modal-overlay">
+        <h3 class="modal-title-out">تسجيل تلميذ جديد / تعديل بيانات</h3>
+
+        <div class="modal-content">
+            <hr style="margin-top: 0;">
+
+            <div class="student-header-box">
+                <div class="student-header-item"><label class="student-header-label">رقم التعريف</label><div id="modalIdNumber" class="student-header-value"></div></div>
+                <div class="student-header-item"><label class="student-header-label">اللقب</label><div id="modalLastName" class="student-header-value"></div></div>
+                <div class="student-header-item"><label class="student-header-label">الاسم</label><div id="modalFirstName" class="student-header-value"></div></div>
+            </div>
+
+            <form id="registrationForm">
+                <div class="form-row">
+                    <div class="form-group"><label>اللقب باللاتينية</label><input type="text" id="latinLastName"></div>
+                    <div class="form-group"><label>الاسم باللاتينية</label><input type="text" id="latinFirstName"></div>
+                    <div class="form-group" style="visibility: hidden"><input type="text"></div>
+                    <div class="form-group" style="visibility: hidden"><input type="text"></div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group"><label for="fatherName">اسم الأب</label><input type="text" id="fatherName"></div>
+                    <div class="form-group"><label for="motherLastName">لقب الأم</label><input type="text" id="motherLastName"></div>
+                    <div class="form-group"><label for="motherFirstName">اسم الأم</label><input type="text" id="motherFirstName"></div>
+                    <div class="form-group" style="visibility: hidden;"><input type="text"></div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group"><label for="wilaya">ولاية الإقامة</label><input type="text" id="wilaya"></div>
+                    <div class="form-group"><label for="commune">بلدية الإقامة</label><input type="text" id="commune"></div>
+                    <div class="form-group" style="flex: 2;"><label for="fullAddress">العنوان الكامل للولي الشرعي</label><input type="text" id="fullAddress"></div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group"><label for="phone">رقم هاتف الولي الشرعي</label><input type="tel" id="phone" pattern="[0-9]*" maxlength="10"></div>
+                    <div class="form-group"><label for="email">البريد الإلكتروني للولي الشرعي</label><input type="email" id="email"></div>
+                    <div class="form-group" style="visibility: hidden;"><input type="text"></div>
+                    <div class="form-group" style="visibility: hidden;"><input type="text"></div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="disabilityType">نوع الإعاقة</label>
+                        <select id="disabilityType"><option value="none">--اختر--</option><option value="none">لا شيء</option><option value="mobility">حركية</option><option value="hearing">سمعية</option><option value="visual">بصرية</select>
+                    </div>
+                    <div class="form-group">
+                        <label for="visualAcuity">القدرة البصرية</label>
+                        <select id="visualAcuity"><option value="">--اختر--</option><script>for(let i=1;i<=10;i++)document.write(`<option value="${i}">${i}</option>`);</script></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="amazighOption">التلميذ معني بالامازيغية</label>
+                        <select id="amazighOption"><option value="">--اختر--</option><option value="yes">نعم</option><option value="no">لا</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="wakingSubjects">مواد الإيقاظ</label>
+                        <select id="wakingSubjects"><option value="not_concerned">--اختر--</option><option value="not_concerned">غير معني</option><option value="music">معني بالتربية الموسيقية</option><option value="plastic">معني بالتربية التشكيلية</option></select>
+                    </div>
+                </div>
+            </form>
+            
+            <div class="warning-box">الرجاء التحقق من المعلومات المدخلة بعناية فائقة قبل التأكيد.</div>
+            
+            <div class="modal-footer">
+                <button id="btnConfirm" onclick="confirmRegistration()">✓ تأكيد التعديل</button>
+                <button id="btnCancel" onclick="closeModal()">✕ إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'national_education_exam_records';
+        const MIN_COLS = 23; 
+
+        let rawTableData = []; 
+        let filteredTableData = []; 
+        const rowsPerPage = 10;
+        let currentPage = 1;
+        let totalPages = 0;
+        
+        function loadDataFromStorage() {
+            const storedData = localStorage.getItem(STORAGE_KEY);
+            if (storedData) {
+                try {
+                    rawTableData = JSON.parse(storedData);
+                    rawTableData = rawTableData.map(row => {
+                         while (row.length < MIN_COLS) row.push('');
+                        return row;
+                    });
+                    filteredTableData = rawTableData; 
+                    return true;
+                } catch (e) { console.error(e); return false; }
+            }
+            return false;
+        }
+
+        function saveDataToStorage() {
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rawTableData)); } catch (e) { console.error(e); }
+        }
+        
+        function exportDataToExcel() {
+            if (rawTableData.length === 0) { Swal.fire('تنبيه', 'لا توجد بيانات لتصديرها.', 'info'); return; }
+            const header = [
+                'رقم التعريف', 'اللقب', 'الاسم', 'الجنس', 'تاريخ الميلاد', 'الفوج التربوي', 'حالة التسجيل', 
+                'اسم المستخدم', 'كلمة المرور', 'اسم الأب', 'لقب الأم', 'اسم الأم', 'ولاية الإقامة', 
+                'بلدية الإقامة', 'العنوان الكامل', 'رقم الهاتف', 'البريد الإلكتروني', 
+                'نوع الإعاقة', 'القدرة البصرية', 'الأمازيغية', 'مواد الإيقاظ',
+                'اللقب باللاتينية', 'الاسم باللاتينية' 
+            ];
+            const dataToExport = [header, ...rawTableData];
+            const ws = XLSX.utils.aoa_to_sheet(dataToExport);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "بيانات التلاميذ");
+            XLSX.writeFile(wb, "بيانات_تسجيلات_الامتحان.xlsx");
+            Swal.fire('نجاح', 'تم تصدير جميع بيانات التلاميذ بنجاح.', 'success');
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                rawTableData = excelData.slice(1).map(row => {
+                    while (row.length < MIN_COLS) row.push('');
+                    return row;
+                });
+                saveDataToStorage();
+                filteredTableData = rawTableData; 
+                document.getElementById('searchInput').value = ''; 
+                totalPages = Math.ceil(filteredTableData.length / rowsPerPage);
+                renderTable(1);
+                Swal.fire('نجاح', 'تم استيراد البيانات بنجاح.', 'success');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function filterTable() {
+            const searchValue = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (searchValue === '') filteredTableData = rawTableData;
+            else filteredTableData = rawTableData.filter(row => row.slice(0, 3).some(cell => String(cell).toLowerCase().includes(searchValue)));
+            totalPages = Math.ceil(filteredTableData.length / rowsPerPage);
+            renderTable(1);
+        }
+
+        function renderTable(page) {
+            currentPage = page;
+            const tableBody = document.getElementById('dataTableBody');
+            tableBody.innerHTML = ''; 
+            const dataToDisplay = filteredTableData; 
+            if (dataToDisplay.length === 0) {
+                 tableBody.innerHTML = `<tr><td colspan="8" style="text-align: center;">لا توجد بيانات مطابقة.</td></tr>`;
+                 setupPagination(); return;
+            }
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const pageData = dataToDisplay.slice(start, end);
+
+            pageData.forEach((row, index) => {
+                const globalIndex = rawTableData.findIndex(r => r[0] === row[0] && r[1] === row[1]); 
+                const tr = document.createElement('tr');
+                for (let i = 0; i < 6; i++) {
+                    const td = document.createElement('td');
+                    td.textContent = row[i] !== undefined ? row[i] : '';
+                    tr.appendChild(td);
+                }
+                const statusTd = document.createElement('td');
+                const statusValue = String(row[6]).trim(); 
+                statusTd.innerHTML = statusValue.toLowerCase() === 'مسجل' ? `<span class="status-registered">مسجل</span>` : `<span class="status-not-registered">غير مسجل</span>`;
+                tr.appendChild(statusTd);
+                
+                const operationsTd = document.createElement('td');
+                const idNumber = row[0] || ''; const lastName = row[1] || ''; const firstName = row[2] || '';
+                operationsTd.innerHTML = `<button class="register-button" onclick="openModal(${globalIndex}, '${idNumber}', '${lastName}', '${firstName}')">✍ تسجيل/تعديل</button>`;
+                if (statusValue.toLowerCase() === 'مسجل') {
+                    operationsTd.innerHTML += `<button class="unregister-button" onclick="unregisterStudent(${globalIndex})">✖ إلغاء التسجيل</button>`;
+                }
+                tr.appendChild(operationsTd);
+                tableBody.appendChild(tr);
+            });
+            setupPagination();
+        }
+
+        function setupPagination() {
+            const btnFirst = document.getElementById('btnFirst');
+            const btnPrev = document.getElementById('btnPrev');
+            const btnNext = document.getElementById('btnNext');
+            const btnLast = document.getElementById('btnLast');
+            totalPages = Math.ceil(filteredTableData.length / rowsPerPage);
+            if (totalPages <= 1) {
+                btnFirst.disabled = true; btnPrev.disabled = true; btnNext.disabled = true; btnLast.disabled = true; return;
+            }
+            btnFirst.disabled = (currentPage === 1); btnPrev.disabled = (currentPage === 1);
+            btnNext.disabled = (currentPage === totalPages); btnLast.disabled = (currentPage === totalPages);
+        }
+
+        let currentStudentIndex = -1; 
+        function openModal(index, idNumber, lastName, firstName) {
+            currentStudentIndex = index;
+            document.getElementById('modalIdNumber').textContent = idNumber;
+            document.getElementById('modalLastName').textContent = lastName;
+            document.getElementById('modalFirstName').textContent = firstName;
+            document.getElementById('registrationForm').reset();
+            
+            const studentData = rawTableData[index];
+            if (studentData) {
+                document.getElementById('fatherName').value = studentData[9] || '';
+                document.getElementById('motherLastName').value = studentData[10] || '';
+                document.getElementById('motherFirstName').value = studentData[11] || '';
+                document.getElementById('wilaya').value = studentData[12] || '';
+                document.getElementById('commune').value = studentData[13] || '';
+                document.getElementById('fullAddress').value = studentData[14] || '';
+                document.getElementById('phone').value = studentData[15] || '';
+                document.getElementById('email').value = studentData[16] || '';
+                document.getElementById('disabilityType').value = studentData[17] || 'none';
+                document.getElementById('visualAcuity').value = studentData[18] || '';
+                document.getElementById('amazighOption').value = studentData[19] || '';
+                document.getElementById('wakingSubjects').value = studentData[20] || 'not_concerned';
+                document.getElementById('latinLastName').value = studentData[21] || '';
+                document.getElementById('latinFirstName').value = studentData[22] || '';
+            }
+            document.getElementById('registrationModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('registrationModal').style.display = 'none';
+            currentStudentIndex = -1;
+        }
+
+        function generateCredentials() {
+            const username = `CEM${Math.floor(Math.random() * 900000) + 100000}`;
+            const password = `${Math.random().toString(36).slice(2, 8)}`;
+            return { username, password };
+        }
+        
+        function confirmRegistration() {
+            if (currentStudentIndex !== -1) {
+                const studentData = rawTableData[currentStudentIndex];
+                studentData[9] = document.getElementById('fatherName').value;
+                studentData[10] = document.getElementById('motherLastName').value;
+                studentData[11] = document.getElementById('motherFirstName').value;
+                studentData[12] = document.getElementById('wilaya').value;
+                studentData[13] = document.getElementById('commune').value;
+                studentData[14] = document.getElementById('fullAddress').value;
+                studentData[15] = document.getElementById('phone').value;
+                studentData[16] = document.getElementById('email').value;
+                studentData[17] = document.getElementById('disabilityType').value;
+                studentData[18] = document.getElementById('visualAcuity').value;
+                studentData[19] = document.getElementById('amazighOption').value;
+                studentData[20] = document.getElementById('wakingSubjects').value;
+                studentData[21] = document.getElementById('latinLastName').value;
+                studentData[22] = document.getElementById('latinFirstName').value;
+                
+                studentData[6] = 'مسجل'; 
+                if (!studentData[7] || !studentData[8] || studentData[7] === '') {
+                    const creds = generateCredentials();
+                    studentData[7] = creds.username; studentData[8] = creds.password; 
+                }
+                
+                saveDataToStorage();
+                renderTable(currentPage);
+                closeModal();
+                
+                Swal.fire({
+                    title: 'تم التأكيد بنجاح',
+                    text: `تم تحديث بيانات التلميذ ${studentData[1]} ${studentData[2]} وتعيينه كمسجل.`,
+                    icon: 'success',
+                    confirmButtonText: 'موافق'
+                });
+            } 
+        }
+        
+        function unregisterStudent(index) {
+            Swal.fire({
+                title: 'هل أنت متأكد؟',
+                text: "سيتم إلغاء تسجيل التلميذ وحذف بيانات الدفع.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d',
+                confirmButtonText: 'نعم، إلغاء التسجيل!', cancelButtonText: 'إلغاء الأمر'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const studentData = rawTableData[index];
+                    studentData[6] = ''; studentData[7] = ''; studentData[8] = ''; 
+                    saveDataToStorage();
+                    renderTable(currentPage);
+                    Swal.fire('تم الإلغاء', 'تم إلغاء التسجيل بنجاح.', 'info');
+                }
+            });
+        }
+
+        function initPaginationListeners() {
+            document.getElementById('btnFirst').addEventListener('click', () => renderTable(1));
+            document.getElementById('btnPrev').addEventListener('click', () => renderTable(currentPage - 1));
+            document.getElementById('btnNext').addEventListener('click', () => renderTable(currentPage + 1));
+            document.getElementById('btnLast').addEventListener('click', () => renderTable(totalPages));
+            if (loadDataFromStorage()) {
+                totalPages = Math.ceil(filteredTableData.length / rowsPerPage);
+                renderTable(1);
+            } else { setupPagination(); }
+        }
+        document.addEventListener('DOMContentLoaded', initPaginationListeners);
+    </script>
+
+</body>
+</html>
